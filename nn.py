@@ -42,14 +42,10 @@ class NN:
             learning_rate: float = 0.01,
             epochs: int = 100,
             mini_batch_size: int = 4):
-    print(f"Traning ...")
-    print(f"  learning rate = {learning_rate}")
-    print(f"  epochs = {epochs}")
-    print(f"  mini batch size = {mini_batch_size}")
-
     n = len(training_data)
+    m = max(epochs // 10, 1)
 
-    for epoch in range(epochs):
+    for epoch in range(1, epochs + 1):
       random.shuffle(training_data)
 
       mini_batches = [
@@ -60,13 +56,14 @@ class NN:
       for mini_batch in mini_batches:
         self._train_mini_batch(mini_batch, learning_rate)
 
-      print(f"[{epoch + 1} / {epochs} epoch]")
+      if epoch % m == 0:
+        loss = self.total_cost(training_data)
+        print(f"[{epoch} / {epochs} epoch] loss = {loss:.5}")
 
   def _train_mini_batch(self,
                         mini_batch: list,
                         learning_rate: float) -> None:
     m = len(mini_batch)
-
     nabla_w = [np.zeros(w.shape) for w in self.weights]
     nabla_b = [np.zeros(b.shape) for b in self.biases]
 
@@ -106,6 +103,14 @@ class NN:
 
     return (nabla_w, nabla_b)
 
+  def total_cost(self, data: np.array) -> float:
+    n = len(data)
+    cost = 0.
+    for (x, v) in data:
+      y = self.feedforward(x)
+      cost += 0.5 * sum((y - v) ** 2)[0]
+    return cost / n
+
 def main():
   np.random.seed(0)
   nn = NN((3, 2, 1))
@@ -118,7 +123,7 @@ def main():
   nn.train(
     training_data,
     learning_rate=0.1,
-    epochs=5
+    epochs=1000
   )
 
   print(nn.feedforward(x))
