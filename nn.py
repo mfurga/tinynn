@@ -2,13 +2,14 @@
 
 from typing import Callable
 
+import random
 import numpy as np
 
 def sigmoid(z):
-  return 1. + (1. + np.exp(-z))
+  return 1. / (1. + np.exp(-z))
 
 def dsigmoid(z):
-  return sigmoid(z) * (1 - sigmoid(z))
+  return sigmoid(z) * (1. - sigmoid(z))
 
 class NN:
   def __init__(self, size: tuple):
@@ -25,19 +26,64 @@ class NN:
     return a
 
   @staticmethod
-  def cost_derivative(a: np.array, y: np.array) -> np.array:
+  def cost_derivative(y: np.array, v: np.array) -> np.array:
     """
-      a - result from the network (vector)
-      y - actual value (vector)
+    Cost function for single training input.
+      y - result from the network (vector)
+      v - actual value (vector)
 
-      C(a, y) = 0.5 || a - y || ^ 2 = 0.5 * sum[ ai - yi ] ^ 2
-      grad C = a - y
+      C(y, v) = 0.5 || y - v || ^ 2 = 0.5 * sum[ yi - vi ] ^ 2
+      grad C = y - v
     """
-    return a - y
+    return y - v
 
-  def backprop(self, a: np.array, y: np.array):
+  def train(self,
+            training_data: np.array,
+            learning_rate: float = 0.01,
+            epochs: int = 100,
+            mini_batch_size: int = 4):
+    print(f"Traning ...")
+    print(f"  learning rate = {learning_rate}")
+    print(f"  epochs = {epochs}")
+    print(f"  mini batch size = {mini_batch_size}")
+
+    n = len(training_data)
+
+    for epoch in range(epochs):
+      random.shuffle(training_data)
+
+      mini_batches = [
+        training_data[i: i + mini_batch_size]
+        for i in range(0, n, mini_batch_size)
+      ]
+
+      for mini_batch in mini_batches:
+        self._train_mini_batch(mini_batch, learning_rate)
+
+      print(f"[{epoch + 1} / {epochs} epoch]")
+
+  def _train_mini_batch(self,
+                        mini_batch: list,
+                        learning_rate: float) -> None:
+    m = len(mini_batch)
+
+    nabla_w = [np.zeros(w.shape) for w in self.weights]
+    nabla_b = [np.zeros(b.shape) for b in self.biases]
+
+    for (x, v) in mini_batch:
+      delta_nabla_w, delta_nabla_b = self.backprop(x, v)
+      nabla_w = [nw + dnw for nw, dnw in zip(nabla_w, delta_nabla_w)]
+      nabla_b = [nb + dnb for nb, dnb in zip(nabla_b, delta_nabla_b)]
+
+    self.weights = [w - learning_rate * (nw / m)
+                    for w, nw in zip(self.weights, nabla_w)]
+    self.biases = [b - learning_rate * (nb / m)
+                   for b, nb in zip(self.biases, nabla_b)]
+
+  def backprop(self, x: np.array, v: np.array):
     preactivations = [0]
-    activations = [a]
+    activations = [x]
+    a = x
 
     for w, b in zip(self.weights, self.biases):
       z = w.dot(a) + b
@@ -49,7 +95,7 @@ class NN:
     nabla_w = [np.zeros(w.shape) for w in self.weights]
     nabla_b = [np.zeros(b.shape) for b in self.biases]
 
-    nabla_a[-1] = NN.cost_derivative(activations[-1], y)
+    nabla_a[-1] = NN.cost_derivative(activations[-1], v)
 
     for l in range(self.num_layers - 2, -1, -1):
       t = nabla_a[l + 1] * dsigmoid(preactivations[l + 1])
@@ -62,12 +108,20 @@ class NN:
 
 def main():
   np.random.seed(0)
-  nn = NN((3, 4, 2, 3))
+  nn = NN((3, 2, 1))
 
-  a = np.array([1, 1, 1]).reshape(-1, 1)
-  y = np.array([2, 2, 2]).reshape(-1, 1)
-  grad = nn.backprop(a, y)
-  print(grad)
+  x = np.array([0., 0.2, 0.4]).reshape(-1, 1)
+  v = np.array([0.3]).reshape(-1, 1)
+
+  training_data = [(x, v)]
+
+  nn.train(
+    training_data,
+    learning_rate=0.1,
+    epochs=5
+  )
+
+  print(nn.feedforward(x))
 
 if __name__ == "__main__":
   main()
