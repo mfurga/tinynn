@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 from typing import Callable
-from mnist_loader import mnist_load, raw_load
 
+import pickle
 import random
 import numpy as np
 
@@ -12,10 +12,35 @@ def sigmoid(z):
 def dsigmoid(z):
   return sigmoid(z) * (1. - sigmoid(z))
 
+def softmax(z):
+  ezp = np.exp(z - np.max(z))
+  return ezp / np.sum(ezp)
+
+class QuadraticCost:
+  @staticmethod
+  def fn(y: np.array, v: np.array) -> float:
+    return 0.5 * np.linalg.norm(y - v) ** 2
+
+  @staticmethod
+  def delta(z: np.array, y: np.array, v: np.array) -> np.array:
+    return (y - v) * dsigmoid(z)
+
+class CrossEntropyCost:
+  @staticmethod
+  def fn(y: np.array, v: np.array) -> float:
+    return -1 * np.sum(v * np.log(y))
+
+  @staticmethod
+  def delta(z: np.array, y: np.array, v: np.array) -> np.array:
+    return y - v
+
 class Network:
-  def __init__(self, size: tuple):
+  def __init__(self, size: tuple, cost = QuadraticCost):
     self.size = size
     self.num_layers = len(size)
+    self.cost = cost
+
+    # Weights & biases initialization.
     self.weights = [
       np.random.randn(y, x) for (x, y) in zip(size[:-1], size[1:])
     ]
@@ -25,14 +50,6 @@ class Network:
     for w, b in zip(self.weights, self.biases):
       a = sigmoid(w.dot(a) + b)
     return a
-
-  @staticmethod
-  def cost_derivative(y: np.array, v: np.array) -> np.array:
-    """
-    Derivative of cost function C(y, v).
-    C(y, v) = 0.5 || y - v || ^ 2 = 0.5 * sum[ yi - vi ] ^ 2
-    """
-    return y - v
 
   def train(self, training_data: np.array, test_data: np.array = None,
             learning_rate: float = 0.01, epochs: int = 100,
@@ -72,7 +89,7 @@ class Network:
                    for b, nb in zip(self.biases, nabla_b)]
 
   def backprop(self, x: np.array, v: np.array):
-    preactivations = [0]
+    preactivations = [None]
     activations = [x]
     a = x
 
@@ -82,18 +99,21 @@ class Network:
       a = sigmoid(z)
       activations.append(a)
 
-    nabla_a = [np.zeros(a.shape) for a in activations]
     nabla_w = [np.zeros(w.shape) for w in self.weights]
     nabla_b = [np.zeros(b.shape) for b in self.biases]
 
-    nabla_a[-1] = Network.cost_derivative(activations[-1], v)
+    # delta[l + 1]
+    delta = self.cost.delta(preactivations[-1], activations[-1], v)
 
-    for l in range(self.num_layers - 2, -1, -1):
-      t = nabla_a[l + 1] * dsigmoid(preactivations[l + 1])
+    nabla_w[-1] = np.dot(delta, activations[-2].T)
+    nabla_b[-1] = delta
 
-      nabla_w[l] = np.dot(t, activations[l].T)
-      nabla_b[l] = t
-      nabla_a[l] = np.dot(self.weights[l].T, t)
+    for l in range(self.num_layers - 3, -1, -1):
+      delta = np.dot(self.weights[l + 1].T, delta) * \
+          dsigmoid(preactivations[l + 1])
+
+      nabla_w[l] = np.dot(delta, activations[l].T)
+      nabla_b[l] = delta
 
     return nabla_w, nabla_b
 
@@ -103,22 +123,37 @@ class Network:
     return sum(int(x == y) for (x, y) in results)
 
   def total_cost(self, data: np.array) -> float:
-    n = len(data)
     cost = 0.
     for (x, v) in data:
       y = self.feedforward(x)
-      cost += 0.5 * sum((y - v) ** 2)[0]
-    return cost / n
+      cost += self.cost.fn(y, v)
+    return cost / len(data)
+
+def save(net: Network):
+  with open("weights.pkl", "wb") as f:
+    pickle.dump(net.weights, f, pickle.HIGHEST_PROTOCOL)
+
+  with open("biases.pkl", "wb") as f:
+    pickle.dump(net.biases, f, pickle.HIGHEST_PROTOCOL)
+
+def load() -> Network:
+  net = Network([784, 60, 10], cost=CrossEntropyCost)
+  with open("weights.pkl", "rb") as f:
+    net.weights = pickle.load(f)
+
+  with open("biases.pkl", "rb") as f:
+    net.biases = pickle.load(f)
+
+  return net
 
 def main():
   #np.random.seed(0)
-  net = Network([784, 30, 10])
+  #random.seed(0)
 
-  training_data, test_data = mnist_load()
-  training_data = training_data[:2000]
-
-  net.train(training_data, test_data, learning_rate=2, mini_batch_size=20,
-            epochs=30)
+  net = Network([3, 2, 1], cost=CrossEntropyCost)
+  x = np.array([1, 1, 1]).reshape(-1, 1)
+  y = net.feedforward(x)
+  print(y)
 
 if __name__ == "__main__":
   main()
