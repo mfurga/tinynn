@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import Tuple, Type, Union, Optional
-from math import log
 
 import numpy as np
 
@@ -85,51 +84,27 @@ class Tensor:
 
     return x, y
 
-  def __neg__(self) -> Tensor:
-    return self.neg()
+  def __neg__(self): return self.neg()
 
-  def __add__(self, other: Union[Tensor, Number]) -> Tensor:
-    return self.add(other)
+  def __add__(self, x): return self.add(x)
+  def __sub__(self, x): return self.sub(other)
+  def __mul__(self, x): return self.mul(other)
+  def __truediv__(self, x): return self.div(other)
+  def __matmul__(self, x): return self.dot(other)
+  def __pow__(self, x): return self.pow(other)
 
-  def __sub__(self, other: Union[Tensor, Number]) -> Tensor:
-    return self.sub(other)
-
-  def __mul__(self, other: Union[Tensor, Number]) -> Tensor:
-    return self.mul(other)
-
-  def __truediv__(self, other: Union[Tensor, Number]) -> Tensor:
-    return self.div(other)
-
-  def __matmul__(self, other: Union[Tensor, Number]) -> Tensor:
-    return self.dot(other)
-
-  def __pow__(self, other: Union[Tensor, Number]) -> Tensor:
-    return self.pow(other)
-
-  def __radd__(self, other: Union[Tensor, Number]) -> Tensor:
-    return self.add(other, True)
-
-  def __rsub__(self, other: Union[Tensor, Number]) -> Tensor:
-    return self.sub(other, True)
-
-  def __rmul__(self, other: Union[Tensor, Number]) -> Tensor:
-    return self.mul(other, True)
-
-  def __rtruediv__(self, other: Union[Tensor, Number]) -> Tensor:
-    return self.div(other, True)
-
-  def __rmatmul__(self, other: Union[Tensor, Number]) -> Tensor:
-    return self.dot(other, True)
-
-  def __rpow__(self, other: Union[Tensor, Number]) -> Tensor:
-    return self.pow(other, True)
+  def __radd__(self, x): return self.add(other, True)
+  def __rsub__(self, x): return self.sub(other, True)
+  def __rmul__(self, x): return self.mul(other, True)
+  def __rtruediv__(self, x): return self.div(other, True)
+  def __rmatmul__(self, x): return self.dot(other, True)
+  def __rpow__(self, x): return self.pow(other, True)
 
   def __repr__(self):
     return f"{self.data}"
 
 
 class Function:
-
   def __init__(self, *x: Tensor):
     self.requires_grad = any(t.requires_grad for t in x)
     self.children: Tuple[Tensor] = (),
@@ -157,7 +132,6 @@ class Function:
 
 
 class Add(Function):
-
   def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
     return x0 + x1
 
@@ -168,7 +142,6 @@ class Add(Function):
 
 
 class Mul(Function):
-
   def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
     self.x0 = x0
     self.x1 = x1
@@ -181,7 +154,6 @@ class Mul(Function):
 
 
 class Pow(Function):
-
   def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
     self.x0 = x0
     self.x1 = x1
@@ -194,7 +166,6 @@ class Pow(Function):
 
 
 class Dot(Function):
-
   def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
     self.x0 = x0
     self.x1 = x1
@@ -207,7 +178,6 @@ class Dot(Function):
 
 
 class Reciprocal(Function):
-
   def forward(self, x0: np.ndarray) -> np.ndarray:
     self.x0 = x0
     return 1. / x0
@@ -218,7 +188,6 @@ class Reciprocal(Function):
 
 
 class Exp(Function):
-
   def forward(self, x0: np.ndarray) -> np.ndarray:
     self.x0 = x0
     return np.exp(x0)
