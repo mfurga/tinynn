@@ -86,6 +86,9 @@ class Tensor:
   def mean(self, axis: Optional[int] = None) -> Tensor:
     return Mean.apply(self, axis=axis)
 
+  def log(self) -> Tensor:
+    return Log.apply(self)
+
   def exp(self) -> Tensor:
     return Exp.apply(self)
 
@@ -251,11 +254,21 @@ class Dot(Function):
 
 class Reciprocal(Function):
   def forward(self, x0: np.ndarray) -> np.ndarray:
-    self.x0 = x0
-    return 1. / x0
+    self.res = np.reciprocal(x0, dtype=np.float64)
+    return self.res
 
   def backward(self, gy: np.ndarray) -> Tuple[np.ndarray]:
-    gx0 = - (1 / self.x0 ** 2)
+    gx0 = -gy * self.res * self.res
+    return gx0,
+
+
+class Log(Function):
+  def forward(self, x0: np.ndarray) -> np.ndarray:
+    self.x0 = x0
+    return np.log(x0)
+
+  def backward(self, gy: np.array) -> np.ndarray:
+    gx0 = gy / self.x0
     return gx0,
 
 

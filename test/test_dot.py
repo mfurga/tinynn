@@ -4,7 +4,7 @@ import numpy as np
 from tinynn import Tensor
 
 
-class TestGradDot(unittest.TestCase):
+class TestDot(unittest.TestCase):
 
   def test_dot_1d_1d(self):
     x = Tensor([1, 9, 7], requires_grad=True)
