@@ -45,8 +45,13 @@ class Tensor:
   def zero_grad(self) -> None:
     self._grad = np.zeros_like(self.data, np.float64)
 
-  def backward(self):
+  def backward(self, grad: Optional[Tensor] = None):
     self._grad = np.ones_like(self.data, np.float64)
+    if grad is not None:
+      if grad.shape != self.shape:
+        raise Exception("Invalid grad shape")
+      self._grad = grad.data
+
     for t in reversed(self._topo_sort()):
       grads = t._creator.backward(t._grad)
       for child, grad in zip(t._creator.children, grads):
@@ -80,8 +85,14 @@ class Tensor:
   def broadcast_to(self, shape: Tuple[int]) -> Tensor:
     return Broadcast.apply(self, shape=shape)
 
-  def sum(self, axis: Optional[int] = None) -> Tensor:
-    return Sum.apply(self, axis=axis)
+  def max(self, axis: Optional[int] = None, keepdims: bool = False) -> Tensor:
+    return Max.apply(self, axis=axis, keepdims=keepdims)
+
+  def min(self, axis: Optional[int] = None, keepdims: bool = False) -> Tensor:
+    return Min.apply(self, axis=axis, keepdims=keepdims)
+
+  def sum(self, axis: Optional[int] = None, keepdims: bool = False) -> Tensor:
+    return Sum.apply(self, axis=axis, keepdims=keepdims)
 
   def mean(self, axis: Optional[int] = None) -> Tensor:
     return Mean.apply(self, axis=axis)
@@ -295,22 +306,50 @@ class Broadcast(Function):
     return gx0,
 
 
-class Sum(Function):
-  def forward(self, x0: np.ndarray, axis: Optional[int] = None) -> np.ndarray:
-    self.x0 = x0
+class Max(Function):
+  def forward(self, x: np.ndarray, axis: Optional[int] = None,
+              keepdims: bool = False) -> np.ndarray:
+    self.x = x
     self.axis = axis
-    return np.sum(x0, axis)
+    self.keepdims = keepdims
+    return np.max(x, axis=axis, keepdims=keepdims)
 
   def backward(self, gy: np.array) -> np.ndarray:
-    if self.axis is None:
-      return np.full_like(self.x0, 1, np.float64) * gy,
+    max = self.x.max(axis=self.axis, keepdims=True)
+    max_1s = (self.x == max).astype(int)
+    if self.axis and not self.keepdims:
+      gy = np.expand_dims(gy, axis=self.axis)
+    return (max_1s / np.sum(max_1s, self.axis, keepdims=True)) * gy,
 
-    if self.axis == 0:
-      g = np.full((n, 1), 1)
-      return np.dot(g, gy),
-    else:
-      g = np.full((1, n), 1)
-      return np.dot(gy, g),
+
+class Min(Function):
+  def forward(self, x: np.ndarray, axis: Optional[int] = None,
+              keepdims: bool = False) -> np.ndarray:
+    self.x = x
+    self.axis = axis
+    self.keepdims = keepdims
+    return np.min(x, axis=axis, keepdims=keepdims)
+
+  def backward(self, gy: np.array) -> np.ndarray:
+    min = self.x.min(axis=self.axis, keepdims=True)
+    min_1s = (self.x == min).astype(int)
+    if self.axis and not self.keepdims:
+      gy = np.expand_dims(gy, axis=self.axis)
+    return (min_1s / np.sum(max_1s, self.axis, keepdims=True)) * gy,
+
+
+class Sum(Function):
+  def forward(self, x: np.ndarray, axis: Optional[int] = None,
+              keepdims: bool = False) -> np.ndarray:
+    self.x = x
+    self.axis = axis
+    self.keepdims = keepdims
+    return np.sum(x, axis=axis, keepdims=keepdims)
+
+  def backward(self, gy: np.array) -> np.ndarray:
+    if self.axis and not self.keepdims:
+      gy = np.expand_dims(gy, axis=self.axis)
+    return np.broadcast_to(gy, self.x.shape),
 
 
 class Mean(Function):
