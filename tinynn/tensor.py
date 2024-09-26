@@ -74,7 +74,7 @@ class Tensor:
 
   def assign(self, other: Tensor) -> None:
     self.data = other.data.copy()
-    self.grad = other.grad.copy()
+    self._grad = other._grad.copy()
     self._creator = None
 
   def broadcast_to(self, shape: Tuple[int]) -> Tensor:
@@ -178,10 +178,10 @@ class Function:
       self.children = x
 
   def forward(self, *args):
-    raise NotImplementedError("Forward function is not implemented")
+    raise NotImplementedError("forward method is not implemented")
 
   def backward(self, *args):
-    raise NotImplementedError("Backward function is not implemented")
+    raise NotImplementedError("backward method is not implemented")
 
   @classmethod
   def apply(cls: Type[Function], *x: Tensor, **kwargs) -> Tensor:
@@ -299,7 +299,7 @@ class Sum(Function):
   def forward(self, x0: np.ndarray, axis: Optional[int] = None) -> np.ndarray:
     self.x0 = x0
     self.axis = axis
-    return np.sum(x0, axis, keepdims=True)
+    return np.sum(x0, axis)
 
   def backward(self, gy: np.array) -> np.ndarray:
     if self.axis is None:
@@ -317,7 +317,7 @@ class Mean(Function):
   def forward(self, x0: np.ndarray, axis: Optional[int] = None) -> np.ndarray:
     self.x0 = x0
     self.axis = axis
-    return np.mean(x0, axis, keepdims=True)
+    return np.mean(x0, axis)
 
   def backward(self, gy: np.array) -> np.ndarray:
     if self.axis is None:
