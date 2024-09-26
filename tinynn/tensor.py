@@ -360,7 +360,7 @@ class Mean(Function):
     self.x = x
     self.axis = axis
     self.keepdims = keepdims
-    return np.mean(x, axis)
+    return np.mean(x, axis=axis, keepdims=keepdims)
 
   def backward(self, gy: np.array) -> np.ndarray:
     if self.axis and not self.keepdims:
