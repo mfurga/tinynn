@@ -94,8 +94,8 @@ class Tensor:
   def sum(self, axis: Optional[int] = None, keepdims: bool = False) -> Tensor:
     return Sum.apply(self, axis=axis, keepdims=keepdims)
 
-  def mean(self, axis: Optional[int] = None) -> Tensor:
-    return Mean.apply(self, axis=axis)
+  def mean(self, axis: Optional[int] = None, keepdims: bool = False) -> Tensor:
+    return Mean.apply(self, axis=axis, keepdims=keepdims)
 
   def log(self) -> Tensor:
     return Log.apply(self)
@@ -353,22 +353,23 @@ class Sum(Function):
 
 
 class Mean(Function):
-  def forward(self, x0: np.ndarray, axis: Optional[int] = None) -> np.ndarray:
-    self.x0 = x0
+  # TODO: Remove
+
+  def forward(self, x: np.ndarray, axis: Optional[int] = None,
+              keepdims: bool = False) -> np.ndarray:
+    self.x = x
     self.axis = axis
-    return np.mean(x0, axis)
+    self.keepdims = keepdims
+    return np.mean(x, axis)
 
   def backward(self, gy: np.array) -> np.ndarray:
+    if self.axis and not self.keepdims:
+      gy = np.expand_dims(gy, axis=self.axis)
+
     if self.axis is None:
-      n = self.x0.size
-      return np.full_like(self.x0, 1 / n, np.float64) * gy,
-
-    n = self.x0.shape[self.axis]
-
-    if self.axis == 0:
-      g = np.full((n, 1), 1 / n)
-      return np.dot(g, gy),
+      n = self.x.size
     else:
-      g = np.full((1, n), 1 / n)
-      return np.dot(gy, g),
+      n = self.x.shape[self.axis]
+
+    return np.full_like(self.x, 1 / n, np.float64) * gy,
 
