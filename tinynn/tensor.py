@@ -42,6 +42,10 @@ class Tensor:
   def ndim(self) -> int:
     return self.data.ndim
 
+  @property
+  def size(self) -> int:
+    return self.data.size
+
   def zero_grad(self) -> None:
     self._grad = np.zeros_like(self.data, np.float64)
 
@@ -95,7 +99,10 @@ class Tensor:
     return Sum.apply(self, axis=axis, keepdims=keepdims)
 
   def mean(self, axis: Optional[int] = None, keepdims: bool = False) -> Tensor:
-    return Mean.apply(self, axis=axis, keepdims=keepdims)
+    n = self.size
+    if axis is not None:
+      n = self.shape[axis]
+    return self.sum(axis=axis, keepdims=keepdims) / n
 
   def log(self) -> Tensor:
     return Log.apply(self)
@@ -350,26 +357,4 @@ class Sum(Function):
     if self.axis and not self.keepdims:
       gy = np.expand_dims(gy, axis=self.axis)
     return np.broadcast_to(gy, self.x.shape),
-
-
-class Mean(Function):
-  # TODO: Remove
-
-  def forward(self, x: np.ndarray, axis: Optional[int] = None,
-              keepdims: bool = False) -> np.ndarray:
-    self.x = x
-    self.axis = axis
-    self.keepdims = keepdims
-    return np.mean(x, axis=axis, keepdims=keepdims)
-
-  def backward(self, gy: np.array) -> np.ndarray:
-    if self.axis and not self.keepdims:
-      gy = np.expand_dims(gy, axis=self.axis)
-
-    if self.axis is None:
-      n = self.x.size
-    else:
-      n = self.x.shape[self.axis]
-
-    return np.full_like(self.x, 1 / n, np.float64) * gy,
 
