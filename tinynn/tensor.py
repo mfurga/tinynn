@@ -134,7 +134,9 @@ class Tensor:
   def dropout(self, p: float = 0.5) -> Tensor:
     if not Tensor.training:
       return self
-    return self.where(Tensor.rand(*self.shape, requires_grad=False) > p, 0)
+    r = self.where(Tensor.rand(*self.shape) > p, 0)
+    r.requires_grad = False
+    return r
 
   def broadcast_to(self, shape: Tuple[int]) -> Tensor:
     return Broadcast.apply(self, shape=shape)
