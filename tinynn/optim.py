@@ -17,12 +17,21 @@ class Optimizer:
 
 
 class SGD(Optimizer):
-  def __init__(self, params: List[Tensor], lr: float = 0.001):
+  def __init__(self, params: List[Tensor], lr: float = 0.001,
+               momentum: float = 0):
     super().__init__(params)
     self.lr = lr
+    self.momentum = momentum
+    self.m = [Tensor.zeros(p.shape) for p in params] if momentum else []
 
   def step(self) -> None:
-    for param in self.params:
+    for i, param in enumerate(self.params):
       g = param.grad
-      param.assign(param - self.lr * g)
+      g = self.lr * g
+
+      if self.momentum:
+        self.m[i] = self.momentum * self.m[i] + g
+        g = self.m[i]
+
+      param.assign(param - g)
 

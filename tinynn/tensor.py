@@ -30,6 +30,14 @@ class Tensor:
     self._grad: np.array = np.zeros_like(self.data, np.float64)
     self._creator: Optional[Function] = creator
 
+  @classmethod
+  def randn(cls, *shape: Tuple[int]) -> Tensor:
+    return Tensor(np.random.randn(*shape))
+
+  @classmethod
+  def zeros(cls, shape: Tuple[int, ...]) -> Tensor:
+    return Tensor(np.zeros(shape))
+
   @property
   def grad(self) -> Tensor:
     return Tensor(self._grad)
@@ -76,10 +84,6 @@ class Tensor:
 
     build_topo(self)
     return topo
-
-  @classmethod
-  def randn(cls, *shape: Tuple[int]) -> Tensor:
-    return Tensor(np.random.randn(*shape))
 
   def assign(self, other: Tensor) -> None:
     self.data = other.data.copy()
