@@ -11,11 +11,11 @@ class TestDot(unittest.TestCase):
     y = Tensor([4, 10, 8], requires_grad=True)
 
     z = x.dot(y)
-    assert z.equal(Tensor(150))
+    assert z.equals(Tensor(150))
 
     z.backward()
-    assert x.grad.equal(Tensor([4, 10, 8]))
-    assert y.grad.equal(Tensor([1, 9, 7]))
+    assert x.grad.equals(Tensor([4, 10, 8]))
+    assert y.grad.equals(Tensor([1, 9, 7]))
 
   def test_dot_2d_1d(self):
     x = Tensor([
@@ -27,15 +27,15 @@ class TestDot(unittest.TestCase):
     y = Tensor([-5, 3, 14, -25], requires_grad=True)
 
     z = x.dot(y)
-    assert z.equal(Tensor([1695, -15, -462]))
+    assert z.equals(Tensor([1695, -15, -462]))
 
     z.backward()
-    assert x.grad.equal(Tensor([
+    assert x.grad.equals(Tensor([
       [-5, 3, 14, -25],
       [-5, 3, 14, -25],
       [-5, 3, 14, -25]
     ]))
-    assert y.grad.equal(Tensor([42, -3, 33, -39]))
+    assert y.grad.equals(Tensor([42, -3, 33, -39]))
 
   def test_dot_1d_2d(self):
     x = Tensor([-5, 3, 14, -25], requires_grad=True)
@@ -48,11 +48,11 @@ class TestDot(unittest.TestCase):
     ], requires_grad=True)
 
     z = x.dot(y)
-    assert z.equal(Tensor([519, 162, -761]))
+    assert z.equals(Tensor([519, 162, -761]))
 
     z.backward()
-    assert x.grad.equal(Tensor([38, 6, 28, 12]))
-    assert y.grad.equal(Tensor([
+    assert x.grad.equals(Tensor([38, 6, 28, 12]))
+    assert y.grad.equals(Tensor([
       [ -5,  -5,  -5],
       [  3,   3,   3],
       [ 14,  14,  14],
@@ -72,17 +72,17 @@ class TestDot(unittest.TestCase):
     ], requires_grad=True)
 
     z = x.dot(y)
-    assert z.equal(Tensor([
+    assert z.equals(Tensor([
       [136, 241,  -20, 195],
       [ 42, 204, -117,  -9]
     ]))
 
     z.backward()
-    assert x.grad.equal(Tensor([
+    assert x.grad.equals(Tensor([
       [26, 19, 45],
       [26, 19, 45]
     ]))
-    assert y.grad.equal(Tensor([
+    assert y.grad.equals(Tensor([
       [13, 13, 13, 13],
       [ 1,  1,  1,  1],
       [ 7,  7,  7,  7]

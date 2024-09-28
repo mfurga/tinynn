@@ -13,6 +13,9 @@ class MSELoss(_Loss):
 
 
 class Module:
+  def __call__(self, x: Tensor) -> Tensor:
+    return self.forward(x)
+
   def forward(self, x: Tensor) -> Tensor:
     raise NotImplementedError("forward method is not implemented")
 

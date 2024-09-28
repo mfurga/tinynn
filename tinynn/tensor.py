@@ -13,6 +13,8 @@ def _pad_left(*shapes: Tuple[int, ...]) -> Tuple[Tuple[int, ...], ...]:
 
 
 class Tensor:
+  training: bool = False
+
   def __init__(self,
                data,
                requires_grad: bool = False,
@@ -31,12 +33,20 @@ class Tensor:
     self._creator: Optional[Function] = creator
 
   @classmethod
-  def randn(cls, *shape: Tuple[int]) -> Tensor:
-    return Tensor(np.random.randn(*shape))
+  def rand(cls, *shape: Tuple[int], **kwargs) -> Tensor:
+    return Tensor(np.random.rand(*shape), **kwargs)
 
   @classmethod
-  def zeros(cls, shape: Tuple[int, ...]) -> Tensor:
-    return Tensor(np.zeros(shape))
+  def randn(cls, *shape: Tuple[int], **kwargs) -> Tensor:
+    return Tensor(np.random.randn(*shape), **kwargs)
+
+  @classmethod
+  def ones(cls, shape: Tuple[int, ...], **kwargs) -> Tensor:
+    return Tensor(np.ones(shape), **kwargs)
+
+  @classmethod
+  def zeros(cls, shape: Tuple[int, ...], **kwargs) -> Tensor:
+    return Tensor(np.zeros(shape), **kwargs)
 
   @property
   def grad(self) -> Tensor:
@@ -85,10 +95,46 @@ class Tensor:
     build_topo(self)
     return topo
 
+  def _normalize(self, y: Union[Tensor, Number],
+                 reverse: bool = False) -> Tensor:
+    x = self
+
+    if isinstance(y, Number):
+      y = Tensor(np.full(self.shape, y))
+
+    if x.shape != y.shape:
+      shape = tuple(0 if 0 in size else max(size)
+        for size in zip(*_pad_left(x.shape, y.shape)))
+      x = x.broadcast_to(shape)
+      y = y.broadcast_to(shape)
+
+    if reverse:
+      x, y = y, x
+
+    return x, y
+
   def assign(self, other: Tensor) -> None:
     self.data = other.data.copy()
     self._grad = other._grad.copy()
     self._creator = None
+
+  def where(self, condition: Tensor, other: Union[Tensor, Number]) -> Tensor:
+    x, y = self._normalize(other)
+    return Where.apply(condition, x, y)
+
+  def sigmoid(self) -> Tensor:
+    return 1. / (1. + (-self).exp())
+
+  def softmax(self, axis: Optional[int] = None) -> Tensor:
+    if axis is None:
+      axis = self.ndim - 1
+    ezp = (self - self.max(axis=axis, keepdims=True)).exp()
+    return ezp / ezp.sum(axis=axis, keepdims=True)
+
+  def dropout(self, p: float = 0.5) -> Tensor:
+    if not Tensor.training:
+      return self
+    return self.where(Tensor.rand(*self.shape, requires_grad=False) > p, 0)
 
   def broadcast_to(self, shape: Tuple[int]) -> Tensor:
     return Broadcast.apply(self, shape=shape)
@@ -142,28 +188,21 @@ class Tensor:
   def pow(self, other: Union[Tensor, Number], reverse: bool = False) -> Tensor:
     return Pow.apply(*self._normalize(other, reverse))
 
-  def _normalize(self, y: Union[Tensor, Number],
-                 reverse: bool = False) -> Tensor:
-    x = self
-
-    if isinstance(y, Number):
-      y = Tensor(np.full(self.shape, y))
-
-    if x.shape != y.shape:
-      shape = tuple(0 if 0 in size else max(size)
-        for size in zip(*_pad_left(x.shape, y.shape)))
-      x = x.broadcast_to(shape)
-      y = y.broadcast_to(shape)
-
-    if reverse:
-      x, y = y, x
-
-    return x, y
-
-  def equal(self, x: Tensor) -> bool:
+  def equals(self, x: Tensor) -> bool:
     if not isinstance(x, Tensor):
       return False
     return np.array_equal(self.data, x.data)
+
+  def logical_not(self) -> Tensor:
+    return Tensor(np.logical_not(self.data))
+
+  def less(self, other: Union[Tensor, Number], reverse: bool = False) -> Tensor:
+    x, y = self._normalize(other, reverse)
+    return Tensor(x.data < y.data)
+
+  def equal(self, other: Union[Tensor, Number]) -> Tensor:
+    x, y = self._normalize(other)
+    return Tensor(x.data == y.data)
 
   def __hash__(self) -> int:
     return id(self)
@@ -186,6 +225,13 @@ class Tensor:
   def __rtruediv__(self, x): return self.div(x, True)
   def __rmatmul__(self, x): return self.dot(x, True)
   def __rpow__(self, x): return self.pow(x, True)
+
+  def __lt__(self, x) -> Tensor: return self.less(x)
+  def __gt__(self, x) -> Tensor: return self.less(x, True)
+  def __le__(self, x) -> Tensor: return (self > x).logical_not()
+  def __ge__(self, x) -> Tensor: return (self < x).logical_not()
+  def __eq__(self, x) -> Tensor: return self.equal(x)
+  def __ne__(self, x) -> Tensor: return (self == x).logical_not()
 
   def __repr__(self):
     return f"{self.data}"
@@ -361,4 +407,13 @@ class Sum(Function):
     if self.axis and not self.keepdims:
       gy = np.expand_dims(gy, axis=self.axis)
     return np.broadcast_to(gy, self.x.shape),
+
+
+class Where(Function):
+  def forward(self, condition: np.ndarray, x: np.ndarray,
+              y: np.ndarray) -> np.ndarray:
+    return np.where(condition, x, y)
+
+  def backward(self, gy: np.array) -> np.ndarray:
+    return None, None, None
 
