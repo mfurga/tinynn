@@ -22,7 +22,7 @@ class SGD(Optimizer):
     super().__init__(params)
     self.lr = lr
     self.momentum = momentum
-    self.m = [Tensor.zeros(p.shape) for p in params] if momentum else []
+    self.m = [Tensor.zeros(*p.shape) for p in params] if momentum else []
 
   def step(self) -> None:
     for i, param in enumerate(self.params):

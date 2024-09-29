@@ -49,11 +49,11 @@ class Tensor:
     return Tensor(np.random.randn(*shape), **kwargs)
 
   @classmethod
-  def ones(cls, shape: Tuple[int, ...], **kwargs) -> Tensor:
+  def ones(cls, *shape: Tuple[int, ...], **kwargs) -> Tensor:
     return Tensor(np.ones(shape), **kwargs)
 
   @classmethod
-  def zeros(cls, shape: Tuple[int, ...], **kwargs) -> Tensor:
+  def zeros(cls, *shape: Tuple[int, ...], **kwargs) -> Tensor:
     return Tensor(np.zeros(shape), **kwargs)
 
   @property
