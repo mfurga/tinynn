@@ -33,6 +33,14 @@ class Tensor:
     self._creator: Optional[Function] = creator
 
   @classmethod
+  def train(cls, mode: bool = True) -> None:
+    cls.training = mode
+
+  @classmethod
+  def eval(cls) -> None:
+    cls.train(False)
+
+  @classmethod
   def rand(cls, *shape: Tuple[int], **kwargs) -> Tensor:
     return Tensor(np.random.rand(*shape), **kwargs)
 
@@ -87,7 +95,7 @@ class Tensor:
       if v in visited:
         return
       visited.add(v)
-      if v._creator:
+      if v.requires_grad and v._creator:
         for child in v._creator.children:
           build_topo(child)
         topo.append(v)
@@ -134,7 +142,7 @@ class Tensor:
   def dropout(self, p: float = 0.5) -> Tensor:
     if not Tensor.training:
       return self
-    r = self.where(Tensor.rand(*self.shape) > p, 0)
+    r = self.where(Tensor.rand(*self.shape) > p, 0) / (1. / (1. - p))
     r.requires_grad = False
     return r
 

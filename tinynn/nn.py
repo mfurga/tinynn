@@ -16,11 +16,17 @@ class Module:
   def __call__(self, x: Tensor) -> Tensor:
     return self.forward(x)
 
+  def parameters(self) -> List[Tensor]:
+    params = []
+    for attr in self.__dict__.values():
+      if isinstance(attr, Module):
+        params.extend(attr.parameters())
+      if isinstance(attr, Tensor):
+        params.append(attr)
+    return params
+
   def forward(self, x: Tensor) -> Tensor:
     raise NotImplementedError("forward method is not implemented")
-
-  def parameters(self) -> List[Tensor]:
-    raise NotImplementedError("parameters method is not implemented")
 
 
 class Linear(Module):
@@ -35,11 +41,4 @@ class Linear(Module):
     if self.bias:
       r += self.biases
     return r
-
-  def parameters(self) -> List[Tensor]:
-    r = [self.weights]
-    if self.bias:
-      r.append(self.biases)
-    return r
-
 
