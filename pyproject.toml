@@ -9,7 +9,17 @@ dependencies = [
   "numpy>=2.0.0,<3.0.0"
 ]
 
+[project.optional-dependencies]
+dev = ["black<24.0.0"]
+
 [build-system]
 requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.mypy]
+strict = true
+ignore_missing_imports = true
+
+[tool.black]
+target-version = ["py310"]
 

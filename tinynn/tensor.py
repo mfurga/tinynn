@@ -9,426 +9,468 @@ Number = int | float
 
 
 def _pad_left(*shapes: tuple[int, ...]) -> tuple[tuple[int, ...], ...]:
-  max_dim = max(len(s) for s in shapes)
-  return tuple((1,) * (max_dim - len(s)) + s for s in shapes)
+    max_dim = max(len(s) for s in shapes)
+    return tuple((1,) * (max_dim - len(s)) + s for s in shapes)
 
 
 class Tensor:
-  training: bool = False
+    training: bool = False
 
-  def __init__(self,
-               data: list[Tensor] | Tensor | list[np.ndarray],
-               requires_grad: bool = False,
-               creator: Function | None = None):
-    if isinstance(data, list):
-      if all(isinstance(x, Tensor) for x in data):
-        data = [x.data for x in data]
+    def __init__(
+        self,
+        data: list[Tensor] | Tensor | list[np.ndarray],
+        requires_grad: bool = False,
+        creator: Function | None = None,
+    ):
+        if isinstance(data, list):
+            if all(isinstance(x, Tensor) for x in data):
+                data = [x.data for x in data]
 
-    if isinstance(data, Tensor):
-      data = data.data
+        if isinstance(data, Tensor):
+            data = data.data
 
-    self.data: np.ndarray = np.array(data)
-    self.requires_grad: bool = requires_grad
+        self.data: np.ndarray = np.array(data)
+        self.requires_grad: bool = requires_grad
 
-    self._grad: np.ndarray = np.zeros_like(self.data, np.float64)
-    self._creator: Function | None = creator
+        self._grad: np.ndarray = np.zeros_like(self.data, np.float64)
+        self._creator: Function | None = creator
 
-  @classmethod
-  def train(cls, mode: bool = True) -> None:
-    cls.training = mode
+    @classmethod
+    def train(cls, mode: bool = True) -> None:
+        cls.training = mode
 
-  @classmethod
-  def eval(cls) -> None:
-    cls.train(False)
+    @classmethod
+    def eval(cls) -> None:
+        cls.train(False)
 
-  @classmethod
-  def rand(cls, *shape: int, **kwargs: Any) -> Tensor:
-    return Tensor(np.random.rand(*shape), **kwargs)
+    @classmethod
+    def rand(cls, *shape: int, **kwargs: Any) -> Tensor:
+        return Tensor(np.random.rand(*shape), **kwargs)
 
-  @classmethod
-  def randn(cls, *shape: int, **kwargs: Any) -> Tensor:
-    return Tensor(np.random.randn(*shape), **kwargs)
+    @classmethod
+    def randn(cls, *shape: int, **kwargs: Any) -> Tensor:
+        return Tensor(np.random.randn(*shape), **kwargs)
 
-  @classmethod
-  def ones(cls, *shape: int, **kwargs: Any) -> Tensor:
-    return Tensor(np.ones(shape), **kwargs)
+    @classmethod
+    def ones(cls, *shape: int, **kwargs: Any) -> Tensor:
+        return Tensor(np.ones(shape), **kwargs)
 
-  @classmethod
-  def zeros(cls, *shape: int, **kwargs: Any) -> Tensor:
-    return Tensor(np.zeros(shape), **kwargs)
+    @classmethod
+    def zeros(cls, *shape: int, **kwargs: Any) -> Tensor:
+        return Tensor(np.zeros(shape), **kwargs)
 
-  @property
-  def grad(self) -> Tensor:
-    return Tensor(self._grad)
+    @property
+    def grad(self) -> Tensor:
+        return Tensor(self._grad)
 
-  @property
-  def shape(self) -> tuple[int, ...]:
-    return cast(tuple[int, ...], self.data.shape)
+    @property
+    def shape(self) -> tuple[int, ...]:
+        return cast(tuple[int, ...], self.data.shape)
 
-  @property
-  def ndim(self) -> int:
-    return cast(int, self.data.ndim)
+    @property
+    def ndim(self) -> int:
+        return cast(int, self.data.ndim)
 
-  @property
-  def size(self) -> int:
-    return cast(int, self.data.size)
+    @property
+    def size(self) -> int:
+        return cast(int, self.data.size)
 
-  def zero_grad(self) -> None:
-    self._grad = np.zeros_like(self.data, np.float64)
+    def zero_grad(self) -> None:
+        self._grad = np.zeros_like(self.data, np.float64)
 
-  def backward(self, grad: Tensor | None = None) -> None:
-    self._grad = np.ones_like(self.data, np.float64)
-    if grad is not None:
-      if grad.shape != self.shape:
-        raise Exception("Invalid grad shape")
-      self._grad = grad.data
+    def backward(self, grad: Tensor | None = None) -> None:
+        self._grad = np.ones_like(self.data, np.float64)
+        if grad is not None:
+            if grad.shape != self.shape:
+                raise Exception("Invalid grad shape")
+            self._grad = grad.data
 
-    for t in reversed(self._topo_sort()):
-      if t._creator is None:
-        continue
-      grads = t._creator.backward(t._grad)
-      for child, grad in zip(t._creator.children, grads):
-        child._grad += grad
+        for t in reversed(self._topo_sort()):
+            if t._creator is None:
+                continue
+            grads = t._creator.backward(t._grad)
+            for child, grad in zip(t._creator.children, grads):
+                child._grad += grad
 
-  def _topo_sort(self) -> list[Tensor]:
-    visited: set[Tensor] = set()
-    topo: list[Tensor] = []
+    def _topo_sort(self) -> list[Tensor]:
+        visited: set[Tensor] = set()
+        topo: list[Tensor] = []
 
-    def build_topo(v: Tensor) -> None:
-      if v in visited:
-        return
-      visited.add(v)
-      if v.requires_grad and v._creator:
-        for child in v._creator.children:
-          build_topo(child)
-        topo.append(v)
+        def build_topo(v: Tensor) -> None:
+            if v in visited:
+                return
+            visited.add(v)
+            if v.requires_grad and v._creator:
+                for child in v._creator.children:
+                    build_topo(child)
+                topo.append(v)
 
-    build_topo(self)
-    return topo
+        build_topo(self)
+        return topo
 
-  def _normalize(self, y: Tensor | Number,
-                 reverse: bool = False) -> tuple[Tensor, Tensor]:
-    x = self
+    def _normalize(
+        self, y: Tensor | Number, reverse: bool = False
+    ) -> tuple[Tensor, Tensor]:
+        x = self
 
-    if isinstance(y, Number):
-      y = Tensor(np.full(self.shape, y))
+        if isinstance(y, Number):
+            y = Tensor(np.full(self.shape, y))
 
-    if x.shape != y.shape:
-      shape = tuple(0 if 0 in size else max(size)
-        for size in zip(*_pad_left(x.shape, y.shape)))
-      x = x.broadcast_to(shape)
-      y = y.broadcast_to(shape)
+        if x.shape != y.shape:
+            shape = tuple(
+                0 if 0 in size else max(size)
+                for size in zip(*_pad_left(x.shape, y.shape))
+            )
+            x = x.broadcast_to(shape)
+            y = y.broadcast_to(shape)
 
-    if reverse:
-      x, y = y, x
+        if reverse:
+            x, y = y, x
 
-    return x, y
+        return x, y
 
-  def assign(self, other: Tensor) -> None:
-    self.data = other.data.copy()
-    self._grad = other._grad.copy()
-    self._creator = None
+    def assign(self, other: Tensor) -> None:
+        self.data = other.data.copy()
+        self._grad = other._grad.copy()
+        self._creator = None
 
-  def where(self, condition: Tensor, other: Tensor | Number) -> Tensor:
-    x, y = self._normalize(other)
-    return Where.apply(condition, x, y)
+    def where(self, condition: Tensor, other: Tensor | Number) -> Tensor:
+        x, y = self._normalize(other)
+        return Where.apply(condition, x, y)
 
-  def sigmoid(self) -> Tensor:
-    return 1. / (1. + (-self).exp())
+    def sigmoid(self) -> Tensor:
+        return 1.0 / (1.0 + (-self).exp())
 
-  def softmax(self, axis: int | None = None) -> Tensor:
-    if axis is None:
-      axis = self.ndim - 1
-    ezp = (self - self.max(axis=axis, keepdims=True)).exp()
-    return ezp / ezp.sum(axis=axis, keepdims=True)
+    def softmax(self, axis: int | None = None) -> Tensor:
+        if axis is None:
+            axis = self.ndim - 1
+        ezp = (self - self.max(axis=axis, keepdims=True)).exp()
+        return ezp / ezp.sum(axis=axis, keepdims=True)
 
-  def dropout(self, p: float = 0.5) -> Tensor:
-    if not Tensor.training:
-      return self
-    r = self.where(Tensor.rand(*self.shape) > p, 0) / (1. / (1. - p))
-    r.requires_grad = False
-    return r
+    def dropout(self, p: float = 0.5) -> Tensor:
+        if not Tensor.training:
+            return self
+        r = self.where(Tensor.rand(*self.shape) > p, 0) / (1.0 / (1.0 - p))
+        r.requires_grad = False
+        return r
 
-  def broadcast_to(self, shape: tuple[int, ...]) -> Tensor:
-    return Broadcast.apply(self, shape=shape)
+    def broadcast_to(self, shape: tuple[int, ...]) -> Tensor:
+        return Broadcast.apply(self, shape=shape)
 
-  def max(self, axis: int | None = None, keepdims: bool = False) -> Tensor:
-    return Max.apply(self, axis=axis, keepdims=keepdims)
+    def max(self, axis: int | None = None, keepdims: bool = False) -> Tensor:
+        return Max.apply(self, axis=axis, keepdims=keepdims)
 
-  def min(self, axis: int | None = None, keepdims: bool = False) -> Tensor:
-    return Min.apply(self, axis=axis, keepdims=keepdims)
+    def min(self, axis: int | None = None, keepdims: bool = False) -> Tensor:
+        return Min.apply(self, axis=axis, keepdims=keepdims)
 
-  def sum(self, axis: int | None = None, keepdims: bool = False) -> Tensor:
-    return Sum.apply(self, axis=axis, keepdims=keepdims)
+    def sum(self, axis: int | None = None, keepdims: bool = False) -> Tensor:
+        return Sum.apply(self, axis=axis, keepdims=keepdims)
 
-  def mean(self, axis: int | None = None, keepdims: bool = False) -> Tensor:
-    n = self.size
-    if axis is not None:
-      n = self.shape[axis]
-    return self.sum(axis=axis, keepdims=keepdims) / n
+    def mean(self, axis: int | None = None, keepdims: bool = False) -> Tensor:
+        n = self.size
+        if axis is not None:
+            n = self.shape[axis]
+        return self.sum(axis=axis, keepdims=keepdims) / n
 
-  def log(self) -> Tensor:
-    return Log.apply(self)
+    def log(self) -> Tensor:
+        return Log.apply(self)
 
-  def exp(self) -> Tensor:
-    return Exp.apply(self)
+    def exp(self) -> Tensor:
+        return Exp.apply(self)
 
-  def dot(self, other: Tensor) -> Tensor:
-    if self.ndim > 2 or other.ndim > 2:
-      raise ValueError("Dot function supports only tensors up to 2D")
-    return Dot.apply(self, other)
+    def dot(self, other: Tensor) -> Tensor:
+        if self.ndim > 2 or other.ndim > 2:
+            raise ValueError("Dot function supports only tensors up to 2D")
+        return Dot.apply(self, other)
 
-  def reciprocal(self) -> Tensor:
-    return Reciprocal.apply(self)
+    def reciprocal(self) -> Tensor:
+        return Reciprocal.apply(self)
 
-  def neg(self) -> Tensor:
-    return self * (-1)
+    def neg(self) -> Tensor:
+        return self * (-1)
 
-  def add(self, other: Tensor | Number, reverse: bool = False) -> Tensor:
-    return Add.apply(*self._normalize(other, reverse))
+    def add(self, other: Tensor | Number, reverse: bool = False) -> Tensor:
+        return Add.apply(*self._normalize(other, reverse))
 
-  def sub(self, other: Tensor | Number, reverse: bool = False) -> Tensor:
-    x, y = self._normalize(other, reverse)
-    return x + (-y)
+    def sub(self, other: Tensor | Number, reverse: bool = False) -> Tensor:
+        x, y = self._normalize(other, reverse)
+        return x + (-y)
 
-  def mul(self, other: Tensor | Number, reverse: bool = False) -> Tensor:
-    return Mul.apply(*self._normalize(other, reverse))
+    def mul(self, other: Tensor | Number, reverse: bool = False) -> Tensor:
+        return Mul.apply(*self._normalize(other, reverse))
 
-  def div(self, other: Tensor | Number, reverse: bool = False) -> Tensor:
-    x, y = self._normalize(other, reverse)
-    return x * y.reciprocal()
+    def div(self, other: Tensor | Number, reverse: bool = False) -> Tensor:
+        x, y = self._normalize(other, reverse)
+        return x * y.reciprocal()
 
-  def pow(self, other: Tensor | Number, reverse: bool = False) -> Tensor:
-    return Pow.apply(*self._normalize(other, reverse))
+    def pow(self, other: Tensor | Number, reverse: bool = False) -> Tensor:
+        return Pow.apply(*self._normalize(other, reverse))
 
-  def equals(self, x: Tensor) -> bool:
-    if not isinstance(x, Tensor):
-      return False
-    return cast(bool, np.array_equal(self.data, x.data))
+    def equals(self, x: Tensor) -> bool:
+        if not isinstance(x, Tensor):
+            return False
+        return cast(bool, np.array_equal(self.data, x.data))
 
-  def logical_not(self) -> Tensor:
-    return Tensor(np.logical_not(self.data))
+    def logical_not(self) -> Tensor:
+        return Tensor(np.logical_not(self.data))
 
-  def less(self, other: Tensor | Number, reverse: bool = False) -> Tensor:
-    x, y = self._normalize(other, reverse)
-    return Tensor(x.data < y.data)
+    def less(self, other: Tensor | Number, reverse: bool = False) -> Tensor:
+        x, y = self._normalize(other, reverse)
+        return Tensor(x.data < y.data)
 
-  def equal(self, other: Tensor | Number) -> Tensor:
-    x, y = self._normalize(other)
-    return Tensor(x.data == y.data)
+    def equal(self, other: Tensor | Number) -> Tensor:
+        x, y = self._normalize(other)
+        return Tensor(x.data == y.data)
 
-  def __hash__(self) -> int:
-    return id(self)
+    def __hash__(self) -> int:
+        return id(self)
 
-  def __getitem__(self, key: Any) -> Tensor:
-    return Tensor(self.data[key])
+    def __getitem__(self, key: Any) -> Tensor:
+        return Tensor(self.data[key])
 
-  def __neg__(self) -> Tensor: return self.neg()
+    def __neg__(self) -> Tensor:
+        return self.neg()
 
-  def __add__(self, x: Tensor | Number) -> Tensor: return self.add(x)
-  def __sub__(self, x: Tensor | Number) -> Tensor: return self.sub(x)
-  def __mul__(self, x: Tensor | Number) -> Tensor: return self.mul(x)
-  def __truediv__(self, x: Tensor | Number) -> Tensor: return self.div(x)
-  def __matmul__(self, x: Tensor) -> Tensor: return self.dot(x)
-  def __pow__(self, x: Tensor | Number) -> Tensor: return self.pow(x)
+    def __add__(self, x: Tensor | Number) -> Tensor:
+        return self.add(x)
 
-  def __radd__(self, x: Tensor | Number) -> Tensor: return self.add(x, True)
-  def __rsub__(self, x: Tensor | Number) -> Tensor: return self.sub(x, True)
-  def __rmul__(self, x: Tensor | Number) -> Tensor: return self.mul(x, True)
-  def __rtruediv__(self, x: Tensor | Number) -> Tensor: return self.div(x, True)
-  def __rmatmul__(self, x: Tensor) -> Tensor: return self.dot(x)
-  def __rpow__(self, x: Tensor | Number) -> Tensor: return self.pow(x, True)
+    def __sub__(self, x: Tensor | Number) -> Tensor:
+        return self.sub(x)
 
-  def __lt__(self, x: Tensor | Number) -> Tensor: return self.less(x)
-  def __gt__(self, x: Tensor | Number) -> Tensor: return self.less(x, True)
-  def __le__(self, x: Tensor | Number) -> Tensor: return (self > x).logical_not()
-  def __ge__(self, x: Tensor | Number) -> Tensor: return (self < x).logical_not()
-  def __eq__(self, x: Tensor | Number) -> Tensor: return self.equal(x)  # type: ignore
-  def __ne__(self, x: Tensor | Number) -> Tensor: return (self == x).logical_not()  # type: ignore
+    def __mul__(self, x: Tensor | Number) -> Tensor:
+        return self.mul(x)
 
-  def __repr__(self) -> str:
-    return f"{self.data}"
+    def __truediv__(self, x: Tensor | Number) -> Tensor:
+        return self.div(x)
+
+    def __matmul__(self, x: Tensor) -> Tensor:
+        return self.dot(x)
+
+    def __pow__(self, x: Tensor | Number) -> Tensor:
+        return self.pow(x)
+
+    def __radd__(self, x: Tensor | Number) -> Tensor:
+        return self.add(x, True)
+
+    def __rsub__(self, x: Tensor | Number) -> Tensor:
+        return self.sub(x, True)
+
+    def __rmul__(self, x: Tensor | Number) -> Tensor:
+        return self.mul(x, True)
+
+    def __rtruediv__(self, x: Tensor | Number) -> Tensor:
+        return self.div(x, True)
+
+    def __rmatmul__(self, x: Tensor) -> Tensor:
+        return self.dot(x)
+
+    def __rpow__(self, x: Tensor | Number) -> Tensor:
+        return self.pow(x, True)
+
+    def __lt__(self, x: Tensor | Number) -> Tensor:
+        return self.less(x)
+
+    def __gt__(self, x: Tensor | Number) -> Tensor:
+        return self.less(x, True)
+
+    def __le__(self, x: Tensor | Number) -> Tensor:
+        return (self > x).logical_not()
+
+    def __ge__(self, x: Tensor | Number) -> Tensor:
+        return (self < x).logical_not()
+
+    def __eq__(self, x: Tensor | Number) -> Tensor:
+        return self.equal(x)  # type: ignore
+
+    def __ne__(self, x: Tensor | Number) -> Tensor:
+        return (self == x).logical_not()  # type: ignore
+
+    def __repr__(self) -> str:
+        return f"{self.data}"
 
 
 class Function(ABC):
-  def __init__(self, *x: Tensor):
-    self.requires_grad = any(t.requires_grad for t in x)
-    self.children: tuple[Tensor, ...] = tuple()
+    def __init__(self, *x: Tensor):
+        self.requires_grad = any(t.requires_grad for t in x)
+        self.children: tuple[Tensor, ...] = tuple()
 
-    if self.requires_grad:
-      self.children = x
+        if self.requires_grad:
+            self.children = x
 
-  @abstractmethod
-  def forward(self, *args: np.ndarray, **kwargs: Any) -> np.ndarray:
-    pass
+    @abstractmethod
+    def forward(self, *args: np.ndarray, **kwargs: Any) -> np.ndarray:
+        pass
 
-  @abstractmethod
-  def backward(self, gy: np.array) -> tuple[np.ndarray, ...]:
-    pass
+    @abstractmethod
+    def backward(self, gy: np.array) -> tuple[np.ndarray, ...]:
+        pass
 
-  @classmethod
-  def apply(cls: Type[Function], *x: Tensor, **kwargs: Any) -> Tensor:
-    func = cls(*x)
-    y = func.forward(*[t.data for t in x], **kwargs)
+    @classmethod
+    def apply(cls: Type[Function], *x: Tensor, **kwargs: Any) -> Tensor:
+        func = cls(*x)
+        y = func.forward(*[t.data for t in x], **kwargs)
 
-    if func.requires_grad:
-      ret = Tensor(y, requires_grad=True, creator=func)
-    else:
-      ret = Tensor(y, requires_grad=False)
+        if func.requires_grad:
+            ret = Tensor(y, requires_grad=True, creator=func)
+        else:
+            ret = Tensor(y, requires_grad=False)
 
-    return ret
+        return ret
 
 
 class Add(Function):
-  def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
-    self.x0 = x0
-    self.x1 = x1
-    return x0 + x1
+    def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
+        self.x0 = x0
+        self.x1 = x1
+        return x0 + x1
 
-  def backward(self, gy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    gx0 = gy
-    gx1 = gy
-    return gx0, gx1
+    def backward(self, gy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        gx0 = gy
+        gx1 = gy
+        return gx0, gx1
 
 
 class Mul(Function):
-  def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
-    self.x0 = x0
-    self.x1 = x1
-    return x0 * x1
+    def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
+        self.x0 = x0
+        self.x1 = x1
+        return x0 * x1
 
-  def backward(self, gy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    gx0 = self.x1 * gy
-    gx1 = self.x0 * gy
-    return gx0, gx1
+    def backward(self, gy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        gx0 = self.x1 * gy
+        gx1 = self.x0 * gy
+        return gx0, gx1
 
 
 class Pow(Function):
-  def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
-    self.x0 = x0
-    self.x1 = x1
-    return x0 ** x1
+    def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
+        self.x0 = x0
+        self.x1 = x1
+        return x0**x1
 
-  def backward(self, gy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    gx0 = (self.x1 * (self.x0 ** (self.x1 - 1))) * gy
-    gx1 = (self.x0 ** self.x1 * np.log(self.x0)) * gy
-    return gx0, gx1
+    def backward(self, gy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        gx0 = (self.x1 * (self.x0 ** (self.x1 - 1))) * gy
+        gx1 = (self.x0**self.x1 * np.log(self.x0)) * gy
+        return gx0, gx1
 
 
 class Dot(Function):
-  def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
-    self.x0 = x0
-    self.x1 = x1
-    return np.dot(x0, x1)
+    def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
+        self.x0 = x0
+        self.x1 = x1
+        return np.dot(x0, x1)
 
-  def backward(self, gy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    if self.x0.ndim == 2 and self.x1.ndim == 1:
-      gx0 = np.dot(np.atleast_2d(gy).T, np.atleast_2d(self.x1))
-    else:
-      gx0 = np.dot(gy, self.x1.T)
+    def backward(self, gy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        if self.x0.ndim == 2 and self.x1.ndim == 1:
+            gx0 = np.dot(np.atleast_2d(gy).T, np.atleast_2d(self.x1))
+        else:
+            gx0 = np.dot(gy, self.x1.T)
 
-    if self.x0.ndim == 1 and self.x1.ndim == 2:
-      gx1 = np.dot(np.atleast_2d(self.x0).T, np.atleast_2d(gy))
-    else:
-      gx1 = np.dot(self.x0.T, gy)
+        if self.x0.ndim == 1 and self.x1.ndim == 2:
+            gx1 = np.dot(np.atleast_2d(self.x0).T, np.atleast_2d(gy))
+        else:
+            gx1 = np.dot(self.x0.T, gy)
 
-    return gx0, gx1
+        return gx0, gx1
 
 
 class Reciprocal(Function):
-  def forward(self, x0: np.ndarray) -> np.ndarray:
-    self.res = np.reciprocal(x0, dtype=np.float64)
-    return self.res
+    def forward(self, x0: np.ndarray) -> np.ndarray:
+        self.res = np.reciprocal(x0, dtype=np.float64)
+        return self.res
 
-  def backward(self, gy: np.ndarray) -> tuple[np.ndarray]:
-    gx0 = -gy * self.res * self.res
-    return gx0,
+    def backward(self, gy: np.ndarray) -> tuple[np.ndarray]:
+        gx0 = -gy * self.res * self.res
+        return (gx0,)
 
 
 class Log(Function):
-  def forward(self, x0: np.ndarray) -> np.ndarray:
-    self.x0 = x0
-    return np.log(x0)
+    def forward(self, x0: np.ndarray) -> np.ndarray:
+        self.x0 = x0
+        return np.log(x0)
 
-  def backward(self, gy: np.array) -> np.ndarray:
-    gx0 = gy / self.x0
-    return gx0,
+    def backward(self, gy: np.array) -> np.ndarray:
+        gx0 = gy / self.x0
+        return (gx0,)
 
 
 class Exp(Function):
-  def forward(self, x0: np.ndarray) -> np.ndarray:
-    self.x0 = x0
-    return np.exp(x0)
+    def forward(self, x0: np.ndarray) -> np.ndarray:
+        self.x0 = x0
+        return np.exp(x0)
 
-  def backward(self, gy: np.array) -> tuple[np.ndarray]:
-    gx0 = np.exp(self.x0) * gy
-    return gx0,
+    def backward(self, gy: np.array) -> tuple[np.ndarray]:
+        gx0 = np.exp(self.x0) * gy
+        return (gx0,)
 
 
 class Broadcast(Function):
-  def forward(self, x0: np.ndarray, shape: tuple[int, ...]) -> np.ndarray:
-    self.org_shape = x0.shape
-    self.shape = shape
-    return np.broadcast_to(x0, shape)
+    def forward(self, x0: np.ndarray, shape: tuple[int, ...]) -> np.ndarray:
+        self.org_shape = x0.shape
+        self.shape = shape
+        return np.broadcast_to(x0, shape)
 
-  def backward(self, gy: np.array) -> tuple[np.ndarray]:
-    os, s = _pad_left(self.org_shape, self.shape)
-    axis = tuple(i for i, (si, sj) in enumerate(zip(os, s)) if si != sj)
-    gx0 = np.add.reduce(gy, axis=axis, keepdims=True).reshape(self.org_shape)
-    return gx0,
+    def backward(self, gy: np.array) -> tuple[np.ndarray]:
+        os, s = _pad_left(self.org_shape, self.shape)
+        axis = tuple(i for i, (si, sj) in enumerate(zip(os, s)) if si != sj)
+        gx0 = np.add.reduce(gy, axis=axis, keepdims=True).reshape(self.org_shape)
+        return (gx0,)
 
 
 class Max(Function):
-  def forward(self, x: np.ndarray, axis: int | None = None,
-              keepdims: bool = False) -> np.ndarray:
-    self.x = x
-    self.axis = axis
-    self.keepdims = keepdims
-    return np.max(x, axis=axis, keepdims=keepdims)
+    def forward(
+        self, x: np.ndarray, axis: int | None = None, keepdims: bool = False
+    ) -> np.ndarray:
+        self.x = x
+        self.axis = axis
+        self.keepdims = keepdims
+        return np.max(x, axis=axis, keepdims=keepdims)
 
-  def backward(self, gy: np.array) -> tuple[np.ndarray]:
-    max = self.x.max(axis=self.axis, keepdims=True)
-    max_1s = (self.x == max).astype(int)
-    if self.axis and not self.keepdims:
-      gy = np.expand_dims(gy, axis=self.axis)
-    return (max_1s / np.sum(max_1s, self.axis, keepdims=True)) * gy,
+    def backward(self, gy: np.array) -> tuple[np.ndarray]:
+        max = self.x.max(axis=self.axis, keepdims=True)
+        max_1s = (self.x == max).astype(int)
+        if self.axis and not self.keepdims:
+            gy = np.expand_dims(gy, axis=self.axis)
+        return ((max_1s / np.sum(max_1s, self.axis, keepdims=True)) * gy,)
 
 
 class Min(Function):
-  def forward(self, x: np.ndarray, axis: int | None = None,
-              keepdims: bool = False) -> np.ndarray:
-    self.x = x
-    self.axis = axis
-    self.keepdims = keepdims
-    return np.min(x, axis=axis, keepdims=keepdims)
+    def forward(
+        self, x: np.ndarray, axis: int | None = None, keepdims: bool = False
+    ) -> np.ndarray:
+        self.x = x
+        self.axis = axis
+        self.keepdims = keepdims
+        return np.min(x, axis=axis, keepdims=keepdims)
 
-  def backward(self, gy: np.array) -> tuple[np.ndarray]:
-    min = self.x.min(axis=self.axis, keepdims=True)
-    min_1s = (self.x == min).astype(int)
-    if self.axis and not self.keepdims:
-      gy = np.expand_dims(gy, axis=self.axis)
-    return (min_1s / np.sum(min_1s, self.axis, keepdims=True)) * gy,
+    def backward(self, gy: np.array) -> tuple[np.ndarray]:
+        min = self.x.min(axis=self.axis, keepdims=True)
+        min_1s = (self.x == min).astype(int)
+        if self.axis and not self.keepdims:
+            gy = np.expand_dims(gy, axis=self.axis)
+        return ((min_1s / np.sum(min_1s, self.axis, keepdims=True)) * gy,)
 
 
 class Sum(Function):
-  def forward(self, x: np.ndarray, axis: int | None = None,
-              keepdims: bool = False) -> np.ndarray:
-    self.x = x
-    self.axis = axis
-    self.keepdims = keepdims
-    return np.sum(x, axis=axis, keepdims=keepdims)
+    def forward(
+        self, x: np.ndarray, axis: int | None = None, keepdims: bool = False
+    ) -> np.ndarray:
+        self.x = x
+        self.axis = axis
+        self.keepdims = keepdims
+        return np.sum(x, axis=axis, keepdims=keepdims)
 
-  def backward(self, gy: np.array) -> tuple[np.ndarray]:
-    if self.axis and not self.keepdims:
-      gy = np.expand_dims(gy, axis=self.axis)
-    return np.broadcast_to(gy, self.x.shape),
+    def backward(self, gy: np.array) -> tuple[np.ndarray]:
+        if self.axis and not self.keepdims:
+            gy = np.expand_dims(gy, axis=self.axis)
+        return (np.broadcast_to(gy, self.x.shape),)
 
 
 class Where(Function):
-  def forward(self, condition: np.ndarray, x: np.ndarray,
-              y: np.ndarray) -> np.ndarray:
-    return np.where(condition, x, y)
+    def forward(
+        self, condition: np.ndarray, x: np.ndarray, y: np.ndarray
+    ) -> np.ndarray:
+        return np.where(condition, x, y)
 
-  def backward(self, gy: np.array) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    return np.array(), np.array(), np.array()
-
+    def backward(self, gy: np.array) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        return np.array(), np.array(), np.array()
