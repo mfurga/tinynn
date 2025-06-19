@@ -1,4 +1,4 @@
-from typing import Optional
-
 from tinynn.tensor import Tensor
+
+__all__ = ["Tensor"]
 

@@ -1,5 +1,3 @@
-from typing import List
-
 from tinynn import Tensor
 
 class _Loss:
@@ -16,7 +14,7 @@ class Module:
   def __call__(self, x: Tensor) -> Tensor:
     return self.forward(x)
 
-  def parameters(self) -> List[Tensor]:
+  def parameters(self) -> list[Tensor]:
     params = []
     for attr in self.__dict__.values():
       if isinstance(attr, Module):
