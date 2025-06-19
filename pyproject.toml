@@ -1,16 +1,19 @@
 [project]
 name = "tinynn"
 version = "0.0.1"
-authors = [{ name = "Mateusz Furga", email = "matfurga@gmail.com" }]
-license = { text = "MIT" }
+description = "Tiny neural network library with automatic differentiation"
+authors = [{ name = "Mateusz Furga" }]
+license = "MIT"
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
-dependencies = [
-  "numpy>=2.0.0,<3.0.0"
-]
+dependencies = ["numpy>=2.0.0,<3.0.0"]
 
 [project.optional-dependencies]
-dev = ["black<24.0.0"]
+dev = [
+    "black<24.0.0",
+    "isort<6.0.0"
+]
+test = ["pytest>=8.2,<9.0"]
 
 [build-system]
 requires = ["setuptools>=61", "wheel"]
@@ -18,8 +21,12 @@ build-backend = "setuptools.build_meta"
 
 [tool.mypy]
 strict = true
-ignore_missing_imports = true
+ignore_missing_imports = false
+exclude = ["build", "tests"]
 
 [tool.black]
 target-version = ["py310"]
+
+[tool.isort]
+profile = "black"
 

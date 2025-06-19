@@ -1,4 +1,4 @@
-from tinynn import Tensor
+from .tensor import Tensor
 
 
 class _Loss:

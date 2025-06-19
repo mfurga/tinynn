@@ -1,10 +1,8 @@
-from typing import List
-
-from tinynn import Tensor
+from .tensor import Tensor
 
 
 class Optimizer:
-    def __init__(self, params: List[Tensor]):
+    def __init__(self, params: list[Tensor]):
         for param in params:
             param.requires_grad = True
         self.params = params
@@ -18,7 +16,7 @@ class Optimizer:
 
 
 class SGD(Optimizer):
-    def __init__(self, params: List[Tensor], lr: float = 0.001, momentum: float = 0):
+    def __init__(self, params: list[Tensor], lr: float = 0.001, momentum: float = 0):
         super().__init__(params)
         self.lr = lr
         self.momentum = momentum

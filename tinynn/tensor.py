@@ -1,11 +1,14 @@
 from __future__ import annotations
-from typing import NoReturn, Tuple, Type, Any, cast
+
 from abc import ABC, abstractmethod
+from typing import Any, Sequence, Type, TypeAlias
 
-import itertools
 import numpy as np
+from numpy.typing import ArrayLike, NDArray
 
-Number = int | float
+Number: TypeAlias = int | float
+NumberND: TypeAlias = Number | list["NumberND"]
+NDArrayF64: TypeAlias = NDArray[np.float64]
 
 
 def _pad_left(*shapes: tuple[int, ...]) -> tuple[tuple[int, ...], ...]:
@@ -18,21 +21,17 @@ class Tensor:
 
     def __init__(
         self,
-        data: list[Tensor] | Tensor | list[np.ndarray],
+        data: Tensor | ArrayLike,
         requires_grad: bool = False,
         creator: Function | None = None,
     ):
-        if isinstance(data, list):
-            if all(isinstance(x, Tensor) for x in data):
-                data = [x.data for x in data]
-
         if isinstance(data, Tensor):
             data = data.data
 
-        self.data: np.ndarray = np.array(data)
+        self.data: NDArrayF64 = np.array(data, np.float64)
         self.requires_grad: bool = requires_grad
 
-        self._grad: np.ndarray = np.zeros_like(self.data, np.float64)
+        self._grad: NDArrayF64 = np.zeros_like(self.data, np.float64)
         self._creator: Function | None = creator
 
     @classmethod
@@ -65,15 +64,15 @@ class Tensor:
 
     @property
     def shape(self) -> tuple[int, ...]:
-        return cast(tuple[int, ...], self.data.shape)
+        return self.data.shape
 
     @property
     def ndim(self) -> int:
-        return cast(int, self.data.ndim)
+        return self.data.ndim
 
     @property
     def size(self) -> int:
-        return cast(int, self.data.size)
+        return self.data.size
 
     def zero_grad(self) -> None:
         self._grad = np.zeros_like(self.data, np.float64)
@@ -89,8 +88,8 @@ class Tensor:
             if t._creator is None:
                 continue
             grads = t._creator.backward(t._grad)
-            for child, grad in zip(t._creator.children, grads):
-                child._grad += grad
+            for child, g in zip(t._creator.children, grads):
+                child._grad += g
 
     def _topo_sort(self) -> list[Tensor]:
         visited: set[Tensor] = set()
@@ -209,7 +208,7 @@ class Tensor:
     def equals(self, x: Tensor) -> bool:
         if not isinstance(x, Tensor):
             return False
-        return cast(bool, np.array_equal(self.data, x.data))
+        return np.array_equal(self.data, x.data)
 
     def logical_not(self) -> Tensor:
         return Tensor(np.logical_not(self.data))
@@ -279,11 +278,11 @@ class Tensor:
     def __ge__(self, x: Tensor | Number) -> Tensor:
         return (self < x).logical_not()
 
-    def __eq__(self, x: Tensor | Number) -> Tensor:
-        return self.equal(x)  # type: ignore
+    def __eq__(self, x: Tensor | Number) -> Tensor:  # type: ignore
+        return self.equal(x)
 
-    def __ne__(self, x: Tensor | Number) -> Tensor:
-        return (self == x).logical_not()  # type: ignore
+    def __ne__(self, x: Tensor | Number) -> Tensor:  # type: ignore
+        return (self == x).logical_not()
 
     def __repr__(self) -> str:
         return f"{self.data}"
@@ -298,11 +297,11 @@ class Function(ABC):
             self.children = x
 
     @abstractmethod
-    def forward(self, *args: np.ndarray, **kwargs: Any) -> np.ndarray:
+    def forward(self, *xs: NDArrayF64, **kwargs: Any) -> NDArrayF64:
         pass
 
     @abstractmethod
-    def backward(self, gy: np.array) -> tuple[np.ndarray, ...]:
+    def backward(self, gy: NDArrayF64) -> tuple[NDArrayF64, ...]:
         pass
 
     @classmethod
@@ -319,48 +318,52 @@ class Function(ABC):
 
 
 class Add(Function):
-    def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
+    def forward(self, *xs: NDArrayF64, **kwargs: Any) -> NDArrayF64:
+        x0, x1 = xs
         self.x0 = x0
         self.x1 = x1
         return x0 + x1
 
-    def backward(self, gy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def backward(self, gy: NDArrayF64) -> tuple[NDArrayF64, NDArrayF64]:
         gx0 = gy
         gx1 = gy
         return gx0, gx1
 
 
 class Mul(Function):
-    def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
+    def forward(self, *xs: NDArrayF64, **kwargs: Any) -> NDArrayF64:
+        x0, x1 = xs
         self.x0 = x0
         self.x1 = x1
         return x0 * x1
 
-    def backward(self, gy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def backward(self, gy: NDArrayF64) -> tuple[NDArrayF64, NDArrayF64]:
         gx0 = self.x1 * gy
         gx1 = self.x0 * gy
         return gx0, gx1
 
 
 class Pow(Function):
-    def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
+    def forward(self, *xs: NDArrayF64, **kwargs: Any) -> NDArrayF64:
+        x0, x1 = xs
         self.x0 = x0
         self.x1 = x1
         return x0**x1
 
-    def backward(self, gy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def backward(self, gy: NDArrayF64) -> tuple[NDArrayF64, NDArrayF64]:
         gx0 = (self.x1 * (self.x0 ** (self.x1 - 1))) * gy
         gx1 = (self.x0**self.x1 * np.log(self.x0)) * gy
         return gx0, gx1
 
 
 class Dot(Function):
-    def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
+    def forward(self, *xs: NDArrayF64, **kwargs: Any) -> NDArrayF64:
+        x0, x1 = xs
         self.x0 = x0
         self.x1 = x1
-        return np.dot(x0, x1)
+        return np.array(np.dot(x0, x1), dtype=np.float64)
 
-    def backward(self, gy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def backward(self, gy: NDArrayF64) -> tuple[NDArrayF64, NDArrayF64]:
         if self.x0.ndim == 2 and self.x1.ndim == 1:
             gx0 = np.dot(np.atleast_2d(gy).T, np.atleast_2d(self.x1))
         else:
@@ -375,7 +378,8 @@ class Dot(Function):
 
 
 class Reciprocal(Function):
-    def forward(self, x0: np.ndarray) -> np.ndarray:
+    def forward(self, *xs: NDArrayF64, **kwargs: Any) -> NDArrayF64:
+        (x0,) = xs
         self.res = np.reciprocal(x0, dtype=np.float64)
         return self.res
 
@@ -385,32 +389,35 @@ class Reciprocal(Function):
 
 
 class Log(Function):
-    def forward(self, x0: np.ndarray) -> np.ndarray:
+    def forward(self, *xs: NDArrayF64, **kwargs: Any) -> NDArrayF64:
+        (x0,) = xs
         self.x0 = x0
         return np.log(x0)
 
-    def backward(self, gy: np.array) -> np.ndarray:
+    def backward(self, gy: NDArrayF64) -> tuple[NDArrayF64]:
         gx0 = gy / self.x0
         return (gx0,)
 
 
 class Exp(Function):
-    def forward(self, x0: np.ndarray) -> np.ndarray:
+    def forward(self, *xs: NDArrayF64, **kwargs: Any) -> NDArrayF64:
+        (x0,) = xs
         self.x0 = x0
         return np.exp(x0)
 
-    def backward(self, gy: np.array) -> tuple[np.ndarray]:
+    def backward(self, gy: NDArrayF64) -> tuple[NDArrayF64]:
         gx0 = np.exp(self.x0) * gy
         return (gx0,)
 
 
 class Broadcast(Function):
-    def forward(self, x0: np.ndarray, shape: tuple[int, ...]) -> np.ndarray:
+    def forward(self, *xs: NDArrayF64, **kwargs: Any) -> NDArrayF64:
+        (x0,) = xs
         self.org_shape = x0.shape
-        self.shape = shape
-        return np.broadcast_to(x0, shape)
+        self.shape = kwargs["shape"]
+        return np.broadcast_to(x0, kwargs["shape"])
 
-    def backward(self, gy: np.array) -> tuple[np.ndarray]:
+    def backward(self, gy: NDArrayF64) -> tuple[NDArrayF64]:
         os, s = _pad_left(self.org_shape, self.shape)
         axis = tuple(i for i, (si, sj) in enumerate(zip(os, s)) if si != sj)
         gx0 = np.add.reduce(gy, axis=axis, keepdims=True).reshape(self.org_shape)
@@ -418,15 +425,16 @@ class Broadcast(Function):
 
 
 class Max(Function):
-    def forward(
-        self, x: np.ndarray, axis: int | None = None, keepdims: bool = False
-    ) -> np.ndarray:
+    def forward(self, *xs: NDArrayF64, **kwargs: Any) -> NDArrayF64:
+        (x,) = xs
         self.x = x
-        self.axis = axis
-        self.keepdims = keepdims
-        return np.max(x, axis=axis, keepdims=keepdims)
+        self.axis = kwargs["axis"]
+        self.keepdims = kwargs["keepdims"]
+        return np.array(
+            np.max(x, axis=self.axis, keepdims=self.keepdims), dtype=np.float64
+        )
 
-    def backward(self, gy: np.array) -> tuple[np.ndarray]:
+    def backward(self, gy: NDArrayF64) -> tuple[NDArrayF64]:
         max = self.x.max(axis=self.axis, keepdims=True)
         max_1s = (self.x == max).astype(int)
         if self.axis and not self.keepdims:
@@ -435,15 +443,16 @@ class Max(Function):
 
 
 class Min(Function):
-    def forward(
-        self, x: np.ndarray, axis: int | None = None, keepdims: bool = False
-    ) -> np.ndarray:
+    def forward(self, *xs: NDArrayF64, **kwargs: Any) -> NDArrayF64:
+        (x,) = xs
         self.x = x
-        self.axis = axis
-        self.keepdims = keepdims
-        return np.min(x, axis=axis, keepdims=keepdims)
+        self.axis = kwargs["axis"]
+        self.keepdims = kwargs["keepdims"]
+        return np.array(
+            np.min(x, axis=self.axis, keepdims=self.keepdims), dtype=np.float64
+        )
 
-    def backward(self, gy: np.array) -> tuple[np.ndarray]:
+    def backward(self, gy: NDArrayF64) -> tuple[NDArrayF64]:
         min = self.x.min(axis=self.axis, keepdims=True)
         min_1s = (self.x == min).astype(int)
         if self.axis and not self.keepdims:
@@ -452,25 +461,26 @@ class Min(Function):
 
 
 class Sum(Function):
-    def forward(
-        self, x: np.ndarray, axis: int | None = None, keepdims: bool = False
-    ) -> np.ndarray:
+    def forward(self, *xs: NDArrayF64, **kwargs: Any) -> NDArrayF64:
+        (x,) = xs
         self.x = x
-        self.axis = axis
-        self.keepdims = keepdims
-        return np.sum(x, axis=axis, keepdims=keepdims)
+        self.axis = kwargs["axis"]
+        self.keepdims = kwargs["keepdims"]
+        return np.array(
+            np.sum(x, axis=self.axis, keepdims=self.keepdims), dtype=np.float64
+        )
 
-    def backward(self, gy: np.array) -> tuple[np.ndarray]:
+    def backward(self, gy: NDArrayF64) -> tuple[NDArrayF64]:
         if self.axis and not self.keepdims:
             gy = np.expand_dims(gy, axis=self.axis)
         return (np.broadcast_to(gy, self.x.shape),)
 
 
 class Where(Function):
-    def forward(
-        self, condition: np.ndarray, x: np.ndarray, y: np.ndarray
-    ) -> np.ndarray:
+    def forward(self, *xs: NDArrayF64, **kwargs: Any) -> NDArrayF64:
+        condition, x, y = xs
         return np.where(condition, x, y)
 
-    def backward(self, gy: np.array) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        return np.array(), np.array(), np.array()
+    def backward(self, gy: NDArrayF64) -> tuple[NDArrayF64, NDArrayF64, NDArrayF64]:
+        none = np.array([], dtype=np.float64)
+        return none, none, none
