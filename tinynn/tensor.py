@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Sequence, Type, TypeAlias
+from typing import Any, Type, TypeAlias
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray

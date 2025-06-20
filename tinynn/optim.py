@@ -1,7 +1,11 @@
+from abc import ABC, abstractmethod
+
 from .tensor import Tensor
 
+__all__ = ["SGD"]
 
-class Optimizer:
+
+class Optimizer(ABC):
     def __init__(self, params: list[Tensor]):
         for param in params:
             param.requires_grad = True
@@ -11,8 +15,9 @@ class Optimizer:
         for param in self.params:
             param.zero_grad()
 
+    @abstractmethod
     def step(self) -> None:
-        raise NotImplementedError("step method is not implemented")
+        pass
 
 
 class SGD(Optimizer):

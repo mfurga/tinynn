@@ -1,17 +1,22 @@
+from abc import ABC, abstractmethod
+
 from .tensor import Tensor
 
+__all__ = ["MSELoss", "Linear"]
 
-class _Loss:
+
+class Loss(ABC):
+    @abstractmethod
     def __call__(self, input: Tensor, target: Tensor) -> Tensor:
-        raise NotImplementedError("__call__ method is not implemented")
+        pass
 
 
-class MSELoss(_Loss):
+class MSELoss(Loss):
     def __call__(self, input: Tensor, target: Tensor) -> Tensor:
         return ((input - target) ** 2).mean()
 
 
-class Module:
+class Module(ABC):
     def __call__(self, x: Tensor) -> Tensor:
         return self.forward(x)
 
@@ -24,8 +29,9 @@ class Module:
                 params.append(attr)
         return params
 
+    @abstractmethod
     def forward(self, x: Tensor) -> Tensor:
-        raise NotImplementedError("forward method is not implemented")
+        pass
 
 
 class Linear(Module):
