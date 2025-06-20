@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 from .tensor import Tensor
 
-__all__ = ["MSELoss", "Linear"]
+__all__ = ["MSELoss", "Linear", "Module"]
 
 
 class Loss(ABC):
