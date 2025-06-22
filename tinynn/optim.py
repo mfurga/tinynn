@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from .tensor import Tensor
+from tinynn import Tensor
 
 __all__ = ["SGD"]
 

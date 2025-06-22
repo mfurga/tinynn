@@ -1,3 +1,3 @@
-from .tensor import Tensor
+from tinynn.tensor import Tensor
 
 __all__ = ["Tensor"]

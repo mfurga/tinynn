@@ -1,6 +1,6 @@
 # TinyNN
 
-Tiny neural network library with automatic differentiation (created for educational purposes).
+Tiny neural network library with automatic differentiation (created for learning purposes).
 
 ### Example usage
 
