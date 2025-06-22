@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Type, TypeAlias
+from typing import Any
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-Number: TypeAlias = int | float
-NumberND: TypeAlias = Number | list["NumberND"]
-NDArrayF64: TypeAlias = NDArray[np.float64]
+Number = int | float
+type NumberND = Number | list["NumberND"]
+type NDArrayF64 = NDArray[np.float64]
 
 
 def _pad_left(*shapes: tuple[int, ...]) -> tuple[tuple[int, ...], ...]:
@@ -291,7 +291,7 @@ class Tensor:
 class Function(ABC):
     def __init__(self, *x: Tensor):
         self.requires_grad = any(t.requires_grad for t in x)
-        self.children: tuple[Tensor, ...] = tuple()
+        self.children: tuple[Tensor, ...] = ()
 
         if self.requires_grad:
             self.children = x
@@ -305,7 +305,7 @@ class Function(ABC):
         pass
 
     @classmethod
-    def apply(cls: Type[Function], *x: Tensor, **kwargs: Any) -> Tensor:
+    def apply(cls: type[Function], *x: Tensor, **kwargs: Any) -> Tensor:
         func = cls(*x)
         y = func.forward(*[t.data for t in x], **kwargs)
 
